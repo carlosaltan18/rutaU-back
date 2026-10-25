@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Los mensajes no contienen datos privados. Los clientes autenticados
+    // pueden leerlos, pero solo Firebase Admin puede administrarlos.
+    match /appMessages/{messageId} {
+      allow get, list: if isAuthenticated();
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

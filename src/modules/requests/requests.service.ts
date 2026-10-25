@@ -217,6 +217,13 @@ export class RequestsService {
           HttpStatus.CONFLICT,
         );
       }
+      if (occurrence.liveStartedAt) {
+        throw new DomainException(
+          'LIVE_TRIP_ALREADY_STARTED',
+          'El viaje ya inició y no acepta nuevos pasajeros.',
+          HttpStatus.CONFLICT,
+        );
+      }
 
       request.status = RequestStatus.ACCEPTED;
       request.respondedAt = new Date();

@@ -118,6 +118,7 @@ export class MatchingService {
       .andWhere('candidate.day_of_week = source.day_of_week')
       .andWhere('candidate.role <> source.role')
       .andWhere(`${differenceSql} <= 30`)
+      .andWhere('occurrence.live_started_at IS NULL')
       .andWhere(`${availableSql} > 0`)
       .orderBy(differenceSql, 'ASC')
       .addOrderBy('student.display_name', 'ASC')
@@ -253,6 +254,9 @@ export class MatchingService {
       driverTripId: driver.id,
       travelDate,
     });
+    if (occurrence?.liveStartedAt) {
+      throw this.liveTripAlreadyStarted();
+    }
     const availableSeats =
       (occurrence?.seatCapacitySnapshot ?? driver.seatCapacity ?? 0) -
       (occurrence?.reservedSeats ?? 0);
@@ -282,6 +286,14 @@ export class MatchingService {
     return new DomainException(
       'NO_LONGER_COMPATIBLE',
       'Los trayectos ya no son compatibles.',
+      HttpStatus.CONFLICT,
+    );
+  }
+
+  private liveTripAlreadyStarted() {
+    return new DomainException(
+      'LIVE_TRIP_ALREADY_STARTED',
+      'El viaje ya inició y no acepta nuevas solicitudes.',
       HttpStatus.CONFLICT,
     );
   }

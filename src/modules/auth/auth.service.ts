@@ -86,7 +86,8 @@ export class AuthService {
           photoUrl: input.photoUrl ?? null,
           phone: input.phone ?? null,
           emailVerified:
-            claims.emailVerified === true && claims.email === email,
+            claims.emailVerified === true &&
+            claims.email?.toLowerCase() === email,
           universityId: input.universityId!,
           campusId: input.campusId!,
           accountStatus: AccountStatus.ACTIVE,

@@ -1,0 +1,4 @@
+allowBuilds:
+  '@firebase/util': true
+  '@scarf/scarf': false
+  protobufjs: true

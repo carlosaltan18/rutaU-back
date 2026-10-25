@@ -5,6 +5,11 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
   "type": "module",
   "scripts": {
     "build": "nest build",
@@ -42,6 +47,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "dotenv": "^18.0.7",
+    "firebase-admin": "^14.5.0",
     "luxon": "^3.7.2",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",

@@ -1,0 +1,71 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: rutau_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rutau_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/rutau_test
+      AUTH_PROVIDER: JWT
+      JWT_SECRET: ci-only-secret-with-at-least-thirty-two-characters
+      FIREBASE_PROJECT_ID: rutau-ci
+      FIREBASE_DATABASE_URL: https://rutau-ci-default-rtdb.firebaseio.com/
+      FIRESTORE_DATABASE_ID: (default)
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/rutau-ci-firebase.json
+      FIREBASE_CHECK_REVOKED_TOKENS: 'false'
+      FCM_ENABLED: 'false'
+      LIVE_LOCATION_MAX_HOURS: '12'
+      CORS_ALLOWED_ORIGINS: '*'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create ephemeral Firebase credential
+        run: |
+          openssl genrsa -out /tmp/rutau-ci-private.pem 2048
+          node -e "const fs=require('node:fs');const key=fs.readFileSync('/tmp/rutau-ci-private.pem','utf8');fs.writeFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,JSON.stringify({type:'service_account',project_id:'rutau-ci',private_key_id:'ci',private_key:key,client_email:'firebase-adminsdk@rutau-ci.iam.gserviceaccount.com',client_id:'1',auth_uri:'https://accounts.google.com/o/oauth2/auth',token_uri:'https://oauth2.googleapis.com/token'}));"
+
+      - name: Static verification
+        run: |
+          pnpm build
+          pnpm lint
+          pnpm test
+
+      - name: Database and contract verification
+        run: |
+          pnpm migration:run
+          pnpm seed
+          pnpm test:e2e
+          pnpm openapi:generate
+          git diff --exit-code -- openapi.json

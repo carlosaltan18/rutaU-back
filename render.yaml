@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: rutau-back
+    runtime: node
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm migration:run:prod && pnpm start:prod
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rutau_bd
+          property: connectionString
+      - key: AUTH_PROVIDER
+        value: FIREBASE
+      - key: FIREBASE_PROJECT_ID
+        value: ruta-u-ebf74
+      - key: FIREBASE_DATABASE_URL
+        value: https://ruta-u-ebf74-default-rtdb.firebaseio.com/
+      - key: FIRESTORE_DATABASE_ID
+        value: (default)
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: FIREBASE_CHECK_REVOKED_TOKENS
+        value: 'false'
+      - key: FCM_ENABLED
+        value: 'true'
+      - key: LIVE_LOCATION_MAX_HOURS
+        value: '12'
+      - key: CORS_ALLOWED_ORIGINS
+        value: '*'
+      - key: RATE_LIMIT_SEARCH_PER_MINUTE
+        value: '30'
+      - key: RATE_LIMIT_REQUEST_PER_HOUR
+        value: '60'

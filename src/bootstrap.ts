@@ -26,13 +26,21 @@ export function configureApplication(app: INestApplication): OpenAPIObject {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-  app.enableCors({ origin: origins.length ? origins : false });
+  const allowAllOrigins = origins.includes('*');
+  app.enableCors({
+    origin: allowAllOrigins ? true : origins.length ? origins : false,
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('RutaU API')
     .setDescription('API REST v1 para coordinación de trayectos universitarios')
     .setVersion('1.0.0')
-    .addBearerAuth()
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      description: 'Firebase ID token obtenido por la aplicación Android',
+      bearerFormat: 'Firebase ID token',
+    })
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'docs-json' });

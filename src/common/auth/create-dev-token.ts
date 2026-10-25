@@ -10,6 +10,12 @@ if (process.env.NODE_ENV === 'production') {
   console.error('Este generador no puede ejecutarse en producción.');
   process.exit(1);
 }
+if (process.env.AUTH_PROVIDER !== 'JWT') {
+  console.error(
+    'Este generador solo está disponible cuando AUTH_PROVIDER=JWT. Con Firebase, Android debe obtener el ID token mediante Firebase Auth.',
+  );
+  process.exit(1);
+}
 const secret = process.env.JWT_SECRET;
 if (!secret) throw new Error('JWT_SECRET is required');
 

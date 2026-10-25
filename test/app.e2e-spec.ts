@@ -8,6 +8,8 @@ import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module.js';
 import { configureApplication } from '../src/bootstrap.js';
+import { AuthTokenVerifier } from '../src/common/auth/auth-token-verifier.js';
+import { LiveLocationService } from '../src/modules/live-location/live-location.service.js';
 
 describe('RutaU API (e2e con PostgreSQL)', () => {
   let app: INestApplication<App>;
@@ -22,7 +24,20 @@ describe('RutaU API (e2e con PostgreSQL)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(AuthTokenVerifier)
+      .useValue({
+        verify: (token: string) => jwt.verifyAsync(token),
+      })
+      .overrideProvider(LiveLocationService)
+      .useValue({
+        activateOccurrence: async () => undefined,
+        closeOccurrence: async () => undefined,
+        removeParticipant: async () => undefined,
+        occurrenceId: (driverTripId: string, travelDate: string) =>
+          `${driverTripId}_${travelDate}`,
+      })
+      .compile();
     app = moduleFixture.createNestApplication();
     configureApplication(app);
     await app.init();
@@ -91,31 +106,80 @@ describe('RutaU API (e2e con PostgreSQL)', () => {
     let days = (1 - today.weekday + 7) % 7;
     if (days === 0) days = 7;
     const date = today.plus({ days }).toISODate();
-    const response = await request(app.getHttpServer())
-      .get(
-        `/api/v1/trips/50000000-0000-4000-8000-000000000001/matches?travelDate=${date}`,
-      )
-      .set('Authorization', `Bearer ${tokenFor('demo-student-1')}`)
-      .expect(200);
-    expect(response.body.data.length).toBeGreaterThan(0);
-    for (const match of response.body.data) {
-      expect(match.profile).not.toHaveProperty('institutionalEmail');
-      expect(match.profile).not.toHaveProperty('phone');
-      expect(match.availableSeats).toBeGreaterThan(0);
+    const fullTripId = '50000000-0000-4000-8000-000000000002';
+    const previous = await database.query<
+      Array<{ seat_capacity_snapshot: number; reserved_seats: number }>
+    >(
+      `SELECT seat_capacity_snapshot, reserved_seats
+         FROM trip_occurrences
+        WHERE driver_trip_id = $1 AND travel_date = $2`,
+      [fullTripId, date],
+    );
+    await database.query(
+      `INSERT INTO trip_occurrences
+        (driver_trip_id, travel_date, seat_capacity_snapshot, reserved_seats)
+       VALUES ($1, $2, 3, 3)
+       ON CONFLICT (driver_trip_id, travel_date)
+       DO UPDATE SET seat_capacity_snapshot = 3, reserved_seats = 3`,
+      [fullTripId, date],
+    );
+    try {
+      const response = await request(app.getHttpServer())
+        .get(
+          `/api/v1/trips/50000000-0000-4000-8000-000000000001/matches?travelDate=${date}`,
+        )
+        .set('Authorization', `Bearer ${tokenFor('demo-student-1')}`)
+        .expect(200);
+      expect(response.body.data.length).toBeGreaterThan(0);
+      for (const match of response.body.data) {
+        expect(match.profile).not.toHaveProperty('institutionalEmail');
+        expect(match.profile).not.toHaveProperty('phone');
+        expect(match.availableSeats).toBeGreaterThan(0);
+      }
+      expect(
+        response.body.data.map(
+          (match: { candidateTripId: string }) => match.candidateTripId,
+        ),
+      ).not.toContain(fullTripId);
+    } finally {
+      if (previous[0]) {
+        await database.query(
+          `UPDATE trip_occurrences
+              SET seat_capacity_snapshot = $3, reserved_seats = $4
+            WHERE driver_trip_id = $1 AND travel_date = $2`,
+          [
+            fullTripId,
+            date,
+            previous[0].seat_capacity_snapshot,
+            previous[0].reserved_seats,
+          ],
+        );
+      } else {
+        await database.query(
+          'DELETE FROM trip_occurrences WHERE driver_trip_id = $1 AND travel_date = $2',
+          [fullTripId, date],
+        );
+      }
     }
-    expect(
-      response.body.data.map(
-        (match: { candidateTripId: string }) => match.candidateTripId,
-      ),
-    ).not.toContain('50000000-0000-4000-8000-000000000002');
   });
 
-  it('oculta solicitudes a terceros', async () => {
+  it('impide a terceros leer, aceptar o cancelar solicitudes ajenas', async () => {
+    const thirdPartyAuth = `Bearer ${tokenFor('demo-student-7')}`;
     const response = await request(app.getHttpServer())
       .get('/api/v1/ride-requests/60000000-0000-4000-8000-000000000010')
-      .set('Authorization', `Bearer ${tokenFor('demo-student-7')}`)
+      .set('Authorization', thirdPartyAuth)
       .expect(404);
     expect(response.body.error.code).toBe('REQUEST_NOT_FOUND');
+
+    for (const action of ['accept', 'cancel']) {
+      const mutation = await request(app.getHttpServer())
+        .post(
+          `/api/v1/ride-requests/60000000-0000-4000-8000-000000000001/${action}`,
+        )
+        .set('Authorization', thirdPartyAuth)
+        .expect(404);
+      expect(mutation.body.error.code).toBe('REQUEST_NOT_FOUND');
+    }
   });
 
   it('muestra contacto solo en coordinación confirmada', async () => {

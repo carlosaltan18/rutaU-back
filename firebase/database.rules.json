@@ -1,0 +1,48 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "liveTrips": {
+      "$occurrenceId": {
+        ".read": "auth != null && data.child('meta/status').val() === 'ACTIVE' && data.child('meta/expiresAt').val() >= now && data.child('members').child(auth.uid).val() === true",
+        "meta": {
+          ".write": false
+        },
+        "members": {
+          "$uid": {
+            ".write": false,
+            ".validate": "newData.val() === true"
+          }
+        },
+        "location": {
+          ".write": "auth != null && auth.uid === root.child('liveTrips').child($occurrenceId).child('meta/driverUid').val() && root.child('liveTrips').child($occurrenceId).child('meta/status').val() === 'ACTIVE' && root.child('liveTrips').child($occurrenceId).child('meta/expiresAt').val() >= now && root.child('liveTrips').child($occurrenceId).child('members').child(auth.uid).val() === true",
+          ".validate": "!newData.exists() || newData.hasChildren(['latitude', 'longitude', 'accuracy', 'updatedAt'])",
+          "latitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+          },
+          "longitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          },
+          "accuracy": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000"
+          },
+          "bearing": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 360"
+          },
+          "speed": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 150"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() >= now - 60000 && newData.val() <= now + 10000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

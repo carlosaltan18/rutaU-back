@@ -32,6 +32,27 @@ export class Notification {
   @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
   readAt: Date | null;
 
+  @Column({ name: 'push_sent_at', type: 'timestamptz', nullable: true })
+  pushSentAt: Date | null;
+
+  @Column({ name: 'push_attempts', type: 'smallint', default: 0 })
+  pushAttempts: number;
+
+  @Column({
+    name: 'push_next_attempt_at',
+    type: 'timestamptz',
+    default: () => 'now()',
+  })
+  pushNextAttemptAt: Date;
+
+  @Column({
+    name: 'push_last_error',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  pushLastError: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

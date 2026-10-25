@@ -7,8 +7,11 @@ import { DateTime } from 'luxon';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
+import { vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureApplication } from '../src/bootstrap.js';
+import { AuthTokenVerifier } from '../src/common/auth/auth-token-verifier.js';
+import { LiveLocationService } from '../src/modules/live-location/live-location.service.js';
 
 const DRIVER_TRIP = '50000000-0000-4000-8000-000000000004';
 const DRIVER_STUDENT = '40000000-0000-4000-8000-000000000004';
@@ -22,6 +25,13 @@ const PASSENGER_STUDENTS = [
   '40000000-0000-4000-8000-000000000006',
   '40000000-0000-4000-8000-000000000007',
 ];
+const liveLocationMock = {
+  activateOccurrence: vi.fn(async () => undefined),
+  closeOccurrence: vi.fn(async () => undefined),
+  removeParticipant: vi.fn(async () => undefined),
+  occurrenceId: (driverTripId: string, travelDate: string) =>
+    `${driverTripId}_${travelDate}`,
+};
 
 describe.sequential('Flujos críticos PostgreSQL', () => {
   let app: INestApplication<App>;
@@ -43,7 +53,14 @@ describe.sequential('Flujos críticos PostgreSQL', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(AuthTokenVerifier)
+      .useValue({
+        verify: (token: string) => jwt.verifyAsync(token),
+      })
+      .overrideProvider(LiveLocationService)
+      .useValue(liveLocationMock)
+      .compile();
     app = moduleFixture.createNestApplication();
     configureApplication(app);
     await app.init();
@@ -265,6 +282,67 @@ describe.sequential('Flujos críticos PostgreSQL', () => {
       expect(Number(occurrence.reserved_seats)).toBe(0);
     } finally {
       await cleanup(requestIds, date, coordinationIds);
+    }
+  });
+
+  it('solo el conductor controla una ubicación que solo él puede publicar', async () => {
+    const date = futureMonday(9);
+    await cleanupDate(date);
+    const created = await createRequest(0, date);
+    const pendingAtStart = await createRequest(1, date);
+    let coordinationId: string | undefined;
+    liveLocationMock.activateOccurrence.mockClear();
+    liveLocationMock.closeOccurrence.mockClear();
+    try {
+      const accepted = await request(app.getHttpServer())
+        .post(`/api/v1/ride-requests/${created.id}/accept`)
+        .set('Authorization', `Bearer ${tokenFor(4)}`)
+        .expect(201);
+      coordinationId = accepted.body.data.coordination.id;
+
+      const forbidden = await request(app.getHttpServer())
+        .post(`/api/v1/coordinations/${coordinationId}/live-location/start`)
+        .set('Authorization', `Bearer ${tokenFor(5)}`)
+        .expect(403);
+      expect(forbidden.body.error.code).toBe('FORBIDDEN');
+
+      const started = await request(app.getHttpServer())
+        .post(`/api/v1/coordinations/${coordinationId}/live-location/start`)
+        .set('Authorization', `Bearer ${tokenFor(4)}`)
+        .expect(201);
+      expect(started.body.data.liveLocation.status).toBe('ACTIVE');
+      expect(started.body.data.liveLocation.canEnd).toBe(true);
+      expect(liveLocationMock.activateOccurrence).toHaveBeenCalledWith(
+        expect.objectContaining({
+          driverTripId: DRIVER_TRIP,
+          travelDate: date,
+          driverUid: 'demo-student-4',
+          passengerUids: ['demo-student-5'],
+        }),
+      );
+
+      const lateAcceptance = await request(app.getHttpServer())
+        .post(`/api/v1/ride-requests/${pendingAtStart.id}/accept`)
+        .set('Authorization', `Bearer ${tokenFor(4)}`)
+        .expect(409);
+      expect(lateAcceptance.body.error.code).toBe('LIVE_TRIP_ALREADY_STARTED');
+
+      const ended = await request(app.getHttpServer())
+        .post(`/api/v1/coordinations/${coordinationId}/live-location/end`)
+        .set('Authorization', `Bearer ${tokenFor(4)}`)
+        .expect(201);
+      expect(ended.body.data.status).toBe('COMPLETED');
+      expect(ended.body.data.liveLocation.status).toBe('ENDED');
+      expect(liveLocationMock.closeOccurrence).toHaveBeenCalledWith(
+        DRIVER_TRIP,
+        date,
+      );
+    } finally {
+      await cleanup(
+        [created.id, pendingAtStart.id],
+        date,
+        coordinationId ? [coordinationId] : [],
+      );
     }
   });
 });

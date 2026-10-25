@@ -14,6 +14,12 @@ export class TripOccurrence {
   @Column({ name: 'reserved_seats', type: 'smallint', default: 0 })
   reservedSeats: number;
 
+  @Column({ name: 'live_started_at', type: 'timestamptz', nullable: true })
+  liveStartedAt: Date | null;
+
+  @Column({ name: 'live_ended_at', type: 'timestamptz', nullable: true })
+  liveEndedAt: Date | null;
+
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
