@@ -2,6 +2,7 @@ services:
   - type: web
     name: rutau-back
     runtime: node
+    plan: free
     region: oregon
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     startCommand: pnpm migration:run:prod && pnpm start:prod
