@@ -23,6 +23,7 @@ import {
 } from '../students/student.presenter.js';
 import { TripOccurrence } from '../trips/entities/trip-occurrence.entity.js';
 import type { CoordinationQueryDto } from './dto/coordination-query.dto.js';
+import type { UpdateMeetingPointDto } from './dto/meeting-point.dto.js';
 import { Coordination } from './entities/coordination.entity.js';
 
 interface CoordinationCursor extends Record<string, string> {
@@ -105,6 +106,45 @@ export class CoordinationsService {
       throw this.notFound();
     }
     return this.present(this.dataSource.manager, coordination, student.id);
+  }
+
+  async updateMeetingPoint(
+    id: string,
+    student: Student,
+    input: UpdateMeetingPointDto,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const coordination = await this.lockActiveCoordination(manager, id, student);
+      const now = new Date();
+      coordination.meetingPoint = input.meetingPoint;
+      coordination.driverMeetingPointConfirmedAt =
+        coordination.driverStudentId === student.id ? now : null;
+      coordination.passengerMeetingPointConfirmedAt =
+        coordination.passengerStudentId === student.id ? now : null;
+      await manager.getRepository(Coordination).save(coordination);
+      return this.present(manager, coordination, student.id);
+    });
+  }
+
+  async confirmMeetingPoint(id: string, student: Student) {
+    return this.dataSource.transaction(async (manager) => {
+      const coordination = await this.lockActiveCoordination(manager, id, student);
+      if (!coordination.meetingPoint) {
+        throw new DomainException(
+          'MEETING_POINT_NOT_SET',
+          'Primero deben indicar un punto de encuentro.',
+          HttpStatus.CONFLICT,
+        );
+      }
+      const now = new Date();
+      if (coordination.driverStudentId === student.id) {
+        coordination.driverMeetingPointConfirmedAt = now;
+      } else {
+        coordination.passengerMeetingPointConfirmedAt = now;
+      }
+      await manager.getRepository(Coordination).save(coordination);
+      return this.present(manager, coordination, student.id);
+    });
   }
 
   async startLiveLocation(id: string, student: Student) {
@@ -403,6 +443,8 @@ export class CoordinationsService {
       id: coordination.id,
       rideRequestId: coordination.rideRequestId,
       status: coordination.status,
+      driverTripId: coordination.driverTripId,
+      passengerTripId: coordination.passengerTripId,
       travelDate: coordination.travelDate,
       plannedDepartureTime: coordination.plannedDepartureTime.slice(0, 5),
       originZoneId: coordination.originZoneId,
@@ -415,6 +457,26 @@ export class CoordinationsService {
       createdAt: coordination.createdAt,
       cancelledAt: coordination.cancelledAt,
       completedAt: coordination.completedAt,
+      capacity: {
+        totalSeats: occurrence?.seatCapacitySnapshot ?? 0,
+        confirmedPassengers: occurrence?.reservedSeats ?? 0,
+        availableSeats: occurrence
+          ? Math.max(0, occurrence.seatCapacitySnapshot - occurrence.reservedSeats)
+          : 0,
+      },
+      meetingPoint: coordination.meetingPoint
+        ? {
+            value: coordination.meetingPoint,
+            confirmedByCurrentUser:
+              coordination.driverStudentId === actorStudentId
+                ? Boolean(coordination.driverMeetingPointConfirmedAt)
+                : Boolean(coordination.passengerMeetingPointConfirmedAt),
+            confirmedByOtherParticipant:
+              coordination.driverStudentId === actorStudentId
+                ? Boolean(coordination.passengerMeetingPointConfirmedAt)
+                : Boolean(coordination.driverMeetingPointConfirmedAt),
+          }
+        : null,
       liveLocation: {
         occurrenceId: this.liveLocation.occurrenceId(
           coordination.driverTripId,
@@ -458,6 +520,29 @@ export class CoordinationsService {
         'FORBIDDEN',
         'Solo el conductor puede controlar la ubicación en vivo.',
         HttpStatus.FORBIDDEN,
+      );
+    }
+    return coordination;
+  }
+
+  /** Bloquea una coordinación confirmada para que sus participantes la actualicen. */
+  private async lockActiveCoordination(
+    manager: EntityManager,
+    id: string,
+    student: Student,
+  ) {
+    const coordination = await manager.getRepository(Coordination).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!coordination || !this.isParticipant(coordination, student.id)) {
+      throw this.notFound();
+    }
+    if (coordination.status !== CoordinationStatus.CONFIRMED) {
+      throw new DomainException(
+        'COORDINATION_NOT_ACTIVE',
+        'La coordinación ya no permite cambiar el punto de encuentro.',
+        HttpStatus.CONFLICT,
       );
     }
     return coordination;

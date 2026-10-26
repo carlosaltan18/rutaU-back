@@ -46,6 +46,15 @@ export class Coordination {
   @Column({ type: 'char', length: 3, default: 'GTQ' })
   currency: 'GTQ';
 
+  @Column({ name: 'meeting_point', type: 'varchar', length: 240, nullable: true })
+  meetingPoint: string | null;
+
+  @Column({ name: 'driver_meeting_point_confirmed_at', type: 'timestamptz', nullable: true })
+  driverMeetingPointConfirmedAt: Date | null;
+
+  @Column({ name: 'passenger_meeting_point_confirmed_at', type: 'timestamptz', nullable: true })
+  passengerMeetingPointConfirmedAt: Date | null;
+
   @Column({
     type: 'enum',
     enum: CoordinationStatus,

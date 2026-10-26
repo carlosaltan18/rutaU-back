@@ -2689,6 +2689,234 @@
         ]
       }
     },
+    "/api/v1/coordinations/{id}/meeting-point": {
+      "patch": {
+        "operationId": "CoordinationsController_updateMeetingPoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeetingPointDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o no visible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "REQUEST_ALREADY_EXISTS, REQUEST_NOT_PENDING, NO_LONGER_COMPATIBLE, NO_SEATS_AVAILABLE o conflicto de versión",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TRAVEL_DATE_DAY_MISMATCH o PRICE_REFERENCE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR sin detalles internos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Propone o actualiza el punto de encuentro",
+        "tags": [
+          "Coordinations"
+        ]
+      }
+    },
+    "/api/v1/coordinations/{id}/meeting-point/confirm": {
+      "post": {
+        "operationId": "CoordinationsController_confirmMeetingPoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o no visible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "REQUEST_ALREADY_EXISTS, REQUEST_NOT_PENDING, NO_LONGER_COMPATIBLE, NO_SEATS_AVAILABLE o conflicto de versión",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "TRAVEL_DATE_DAY_MISMATCH o PRICE_REFERENCE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR sin detalles internos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirma el punto de encuentro actual",
+        "tags": [
+          "Coordinations"
+        ]
+      }
+    },
     "/api/v1/coordinations/{id}/live-location/start": {
       "post": {
         "operationId": "CoordinationsController_startLiveLocation",
@@ -3487,6 +3715,10 @@
             "example": "https://example.test/avatar.png",
             "nullable": true
           },
+          "universityId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "campusId": {
             "type": "string",
             "format": "uuid"
@@ -3642,6 +3874,18 @@
           "travelDate",
           "offeredContributionMinor",
           "currency"
+        ]
+      },
+      "UpdateMeetingPointDto": {
+        "type": "object",
+        "properties": {
+          "meetingPoint": {
+            "type": "string",
+            "example": "Entrada principal de la Universidad"
+          }
+        },
+        "required": [
+          "meetingPoint"
         ]
       },
       "RegisterDeviceDto": {

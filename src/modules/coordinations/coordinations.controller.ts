@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -12,6 +14,7 @@ import { ApiStandardErrors } from '../../common/openapi/api-errors.decorator.js'
 import type { Student } from '../students/entities/student.entity.js';
 import { CoordinationsService } from './coordinations.service.js';
 import { CoordinationQueryDto } from './dto/coordination-query.dto.js';
+import { UpdateMeetingPointDto } from './dto/meeting-point.dto.js';
 
 @ApiTags('Coordinations')
 @ApiBearerAuth()
@@ -50,6 +53,25 @@ export class CoordinationsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.cancel(id, student);
+  }
+
+  @Patch('coordinations/:id/meeting-point')
+  @ApiOperation({ summary: 'Propone o actualiza el punto de encuentro' })
+  updateMeetingPoint(
+    @CurrentStudent() student: Student,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: UpdateMeetingPointDto,
+  ) {
+    return this.service.updateMeetingPoint(id, student, input);
+  }
+
+  @Post('coordinations/:id/meeting-point/confirm')
+  @ApiOperation({ summary: 'Confirma el punto de encuentro actual' })
+  confirmMeetingPoint(
+    @CurrentStudent() student: Student,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.confirmMeetingPoint(id, student);
   }
 
   @Post('coordinations/:id/live-location/start')
