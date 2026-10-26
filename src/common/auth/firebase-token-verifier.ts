@@ -21,10 +21,13 @@ export class FirebaseTokenVerifier extends AuthTokenVerifier {
       token,
       this.checkRevoked,
     );
-    return {
+    const claims: AuthClaims = {
       sub: decoded.uid,
       email: decoded.email,
       emailVerified: decoded.email_verified,
     };
+    if (decoded.name) claims.name = decoded.name;
+    if (decoded.picture) claims.picture = decoded.picture;
+    return claims;
   }
 }

@@ -32,48 +32,69 @@ export class AuthService {
       };
     }
 
-    const required = [
-      ['displayName', input.displayName],
-      ['institutionalEmail', input.institutionalEmail],
-      ['universityId', input.universityId],
-      ['campusId', input.campusId],
-    ].filter(([, value]) => !value);
-    if (required.length) {
+    const email = (
+      input.institutionalEmail || claims.email
+    )?.trim().toLowerCase();
+    if (!email) {
       throw new DomainException(
         'VALIDATION_ERROR',
-        'Faltan datos para crear la cuenta.',
+        'Se requiere un correo electrónico para crear la cuenta.',
         HttpStatus.BAD_REQUEST,
-        required.map(([field]) => ({
-          field: String(field),
-          message: 'Este campo es obligatorio para crear la cuenta.',
-        })),
       );
     }
 
-    const campus = await this.campuses.findOneBy({
-      id: input.campusId!,
-      universityId: input.universityId!,
-      active: true,
-    });
-    if (!campus) {
+    const displayName = (
+      input.displayName ||
+      claims.name ||
+      email.split('@')[0]
+    )?.trim();
+
+    let universityId = input.universityId;
+    let campusId = input.campusId;
+
+    if (!universityId || !campusId) {
+      const defaultCampus = await this.campuses.findOne({
+        where: { active: true },
+        order: { createdAt: 'ASC' },
+      });
+      if (defaultCampus) {
+        universityId = defaultCampus.universityId;
+        campusId = defaultCampus.id;
+      }
+    } else {
+      const campus = await this.campuses.findOneBy({
+        id: campusId,
+        universityId: universityId,
+        active: true,
+      });
+      if (!campus) {
+        throw new DomainException(
+          'VALIDATION_ERROR',
+          'El campus no pertenece a la universidad indicada.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    if (!universityId || !campusId) {
       throw new DomainException(
         'VALIDATION_ERROR',
-        'El campus no pertenece a la universidad indicada.',
+        'No hay campus disponibles configurados en el sistema.',
         HttpStatus.BAD_REQUEST,
       );
     }
-    const email = input.institutionalEmail!.toLowerCase();
+
     const domain = email.split('@')[1];
     if (domain) {
       const existing = await this.domains.findOneBy({
-        universityId: input.universityId!,
+        universityId,
         domain,
       });
       if (!existing) {
         await this.domains
           .save(
             this.domains.create({
-              universityId: input.universityId!,
+              universityId,
               domain,
               active: true,
             }),
@@ -86,15 +107,15 @@ export class AuthService {
       const created = await this.students.save(
         this.students.create({
           authSubject: claims.sub,
-          displayName: input.displayName!,
+          displayName: displayName || 'Estudiante RutaU',
           institutionalEmail: email,
-          photoUrl: input.photoUrl ?? null,
+          photoUrl: input.photoUrl ?? claims.picture ?? null,
           phone: input.phone ?? null,
           emailVerified:
             claims.emailVerified === true &&
             claims.email?.toLowerCase() === email,
-          universityId: input.universityId!,
-          campusId: input.campusId!,
+          universityId,
+          campusId,
           accountStatus: AccountStatus.ACTIVE,
         }),
       );

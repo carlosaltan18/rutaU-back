@@ -2,6 +2,8 @@ export interface AuthClaims {
   sub: string;
   email?: string;
   emailVerified?: boolean;
+  name?: string;
+  picture?: string;
 }
 
 export abstract class AuthTokenVerifier {
