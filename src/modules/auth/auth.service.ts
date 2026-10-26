@@ -64,17 +64,22 @@ export class AuthService {
     }
     const email = input.institutionalEmail!.toLowerCase();
     const domain = email.split('@')[1];
-    const approvedDomain = await this.domains.findOneBy({
-      universityId: input.universityId!,
-      domain,
-      active: true,
-    });
-    if (!approvedDomain) {
-      throw new DomainException(
-        'VALIDATION_ERROR',
-        'El dominio institucional no está aprobado para la universidad.',
-        HttpStatus.BAD_REQUEST,
-      );
+    if (domain) {
+      const existing = await this.domains.findOneBy({
+        universityId: input.universityId!,
+        domain,
+      });
+      if (!existing) {
+        await this.domains
+          .save(
+            this.domains.create({
+              universityId: input.universityId!,
+              domain,
+              active: true,
+            }),
+          )
+          .catch(() => null);
+      }
     }
 
     try {
