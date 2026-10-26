@@ -21,10 +21,23 @@ export class StudentsService {
   }
 
   async updateMe(student: Student, input: UpdateMeDto) {
+    if (input.universityId && !input.campusId) {
+      throw new DomainException(
+        'VALIDATION_ERROR',
+        'Selecciona también un campus para la universidad elegida.',
+        HttpStatus.BAD_REQUEST,
+        [
+          {
+            field: 'campusId',
+            message: 'El campus es obligatorio al cambiar de universidad.',
+          },
+        ],
+      );
+    }
     if (input.campusId) {
       const campus = await this.campuses.findOneBy({
         id: input.campusId,
-        universityId: student.universityId,
+        universityId: input.universityId ?? student.universityId,
         active: true,
       });
       if (!campus) {

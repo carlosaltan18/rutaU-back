@@ -31,6 +31,11 @@ export class UpdateMeDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
+  universityId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   campusId?: string;
 
   @ApiPropertyOptional({ example: '+50255555555', nullable: true })
