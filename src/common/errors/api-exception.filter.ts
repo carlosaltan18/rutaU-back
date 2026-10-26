@@ -4,6 +4,7 @@ import {
   Catch,
   HttpException,
   HttpStatus,
+  Logger,
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -11,6 +12,8 @@ import { DomainException } from './domain.exception.js';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger('Exceptions');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
@@ -43,14 +46,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       code =
         status === HttpStatus.TOO_MANY_REQUESTS ? 'RATE_LIMITED' : 'FORBIDDEN';
       message = exception.message;
+    }
+
+    if (status >= 500) {
+      this.logger.error(
+        `[${request.requestId?.slice(0, 8) ?? 'req'}] ${request.method} ${request.originalUrl ?? request.path} -> ${status} [${code}]: ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
     } else {
-      // El detalle se registra sin cuerpo ni credenciales sensibles.
-      console.error('Unhandled request error', {
-        requestId: request.requestId,
-        method: request.method,
-        path: request.path,
-        error: exception instanceof Error ? exception.name : 'UnknownError',
-      });
+      const fieldsInfo = fieldErrors.length
+        ? ` | Fields: ${JSON.stringify(fieldErrors)}`
+        : '';
+      this.logger.warn(
+        `[${request.requestId?.slice(0, 8) ?? 'req'}] ${request.method} ${request.originalUrl ?? request.path} -> ${status} [${code}]: ${message}${fieldsInfo}`,
+      );
     }
 
     response.status(status).json({

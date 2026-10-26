@@ -5,11 +5,13 @@ import {
   type OpenAPIObject,
 } from '@nestjs/swagger';
 import { ApiExceptionFilter } from './common/errors/api-exception.filter.js';
+import { httpLoggerMiddleware } from './common/http/http-logger.middleware.js';
 import { requestIdMiddleware } from './common/http/request-id.middleware.js';
 import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.interceptor.js';
 
 export function configureApplication(app: INestApplication): OpenAPIObject {
   app.use(requestIdMiddleware);
+  app.use(httpLoggerMiddleware);
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });
   app.useGlobalPipes(
     new ValidationPipe({
