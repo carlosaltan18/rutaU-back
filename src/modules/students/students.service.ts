@@ -84,15 +84,23 @@ export class StudentsService {
         );
       }
 
-      const driverRuns = await manager.query<
+      const lockedDriverCoordinations = await manager.query<
         Array<{ driver_trip_id: string; travel_date: string }>
       >(
-        `SELECT DISTINCT driver_trip_id, travel_date
+        `SELECT driver_trip_id, travel_date
            FROM coordinations
           WHERE driver_student_id = $1 AND status = 'CONFIRMED'
           FOR UPDATE`,
         [student.id],
       );
+      const driverRuns = [
+        ...new Map(
+          lockedDriverCoordinations.map((run) => [
+            `${run.driver_trip_id}:${run.travel_date}`,
+            run,
+          ]),
+        ).values(),
+      ];
       for (const run of driverRuns) {
         await manager.query(
           `UPDATE coordinations SET status = 'CANCELLED', cancelled_at = $3
