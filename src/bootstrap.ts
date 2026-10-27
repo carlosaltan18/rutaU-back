@@ -10,6 +10,8 @@ import { requestIdMiddleware } from './common/http/request-id.middleware.js';
 import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.interceptor.js';
 
 export function configureApplication(app: INestApplication): OpenAPIObject {
+  // Render reenvía las solicitudes; así cada persona conserva su propia IP para el límite.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(requestIdMiddleware);
   app.use(httpLoggerMiddleware);
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });

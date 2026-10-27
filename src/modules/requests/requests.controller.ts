@@ -22,17 +22,17 @@ import { RequestsService } from './requests.service.js';
 @ApiTags('Ride requests')
 @ApiBearerAuth()
 @ApiStandardErrors()
-@Throttle({
-  default: {
-    limit: Number(process.env.RATE_LIMIT_REQUEST_PER_HOUR ?? 60),
-    ttl: 60 * 60 * 1000,
-  },
-})
 @Controller('ride-requests')
 export class RequestsController {
   constructor(private readonly service: RequestsService) {}
 
   @Post()
+  @Throttle({
+    default: {
+      limit: Number(process.env.RATE_LIMIT_REQUEST_PER_HOUR ?? 60),
+      ttl: 60 * 60 * 1000,
+    },
+  })
   @ApiOperation({
     summary: 'Crea una solicitud o invitación sin consumir cupo',
   })
