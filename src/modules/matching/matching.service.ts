@@ -1,7 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { type EntityManager, Repository } from 'typeorm';
-import { TripRole, TripStatus } from '../../common/domain/enums.js';
+import {
+  CoordinationStatus,
+  RequestStatus,
+  TripRole,
+  TripStatus,
+} from '../../common/domain/enums.js';
 import { DomainException } from '../../common/errors/domain.exception.js';
 import {
   decodeCursor,
@@ -120,6 +125,31 @@ export class MatchingService {
       .andWhere(`${differenceSql} <= 30`)
       .andWhere('occurrence.live_started_at IS NULL')
       .andWhere(`${availableSql} > 0`)
+      .andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM ride_requests existing_request
+          LEFT JOIN coordinations existing_coordination
+            ON existing_coordination.ride_request_id = existing_request.id
+          WHERE existing_request.travel_date = :travelDate
+            AND (
+              (existing_request.sender_trip_id = source.id AND existing_request.target_trip_id = candidate.id)
+              OR (existing_request.sender_trip_id = candidate.id AND existing_request.target_trip_id = source.id)
+            )
+            AND (
+              existing_request.status = :pendingRequestStatus
+              OR (
+                existing_request.status = :acceptedRequestStatus
+                AND existing_coordination.status = :confirmedCoordinationStatus
+              )
+            )
+        )`,
+        {
+          pendingRequestStatus: RequestStatus.PENDING,
+          acceptedRequestStatus: RequestStatus.ACCEPTED,
+          confirmedCoordinationStatus: CoordinationStatus.CONFIRMED,
+        },
+      )
       .orderBy(differenceSql, 'ASC')
       .addOrderBy('student.display_name', 'ASC')
       .addOrderBy('candidate.id', 'ASC')
