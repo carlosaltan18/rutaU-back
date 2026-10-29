@@ -214,7 +214,9 @@ Cada push incluye `notificationId`, `type`, `resourceId` y `destination`. Androi
 
 ### Firestore: anuncios generales
 
-Firestore no almacena información del negocio. La colección `appMessages` se reserva para anuncios generales dentro de Android: bienvenida, mantenimiento, novedades o recordatorio de completar perfil. El cliente Android tiene permiso de lectura autenticada y no puede escribir.
+Firestore no almacena información del negocio. La colección `appMessages` se reserva para anuncios generales dentro de Android: bienvenida, mantenimiento, novedades o recordatorio de completar perfil. El cliente Android tiene permiso de lectura autenticada y no puede escribir en esta colección.
+
+Android también crea documentos inmutables en `appMessageEvents` al mostrar, cerrar o abrir un anuncio. Cada documento contiene solo UID de Firebase, ID del anuncio, tipo de evento, versión de la app y timestamp de servidor. Esto permite comprobar el alcance de los anuncios sin duplicar datos de trayectos. Los clientes no pueden leer, editar ni borrar esos eventos.
 
 Las reglas están en [`firebase/firestore.rules`](firebase/firestore.rules). El backend o un administrador con Firebase Admin puede crear o actualizar esos anuncios; no hace falta enviar un FCM por cada anuncio general.
 
