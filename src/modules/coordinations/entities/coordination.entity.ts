@@ -49,6 +49,12 @@ export class Coordination {
   @Column({ name: 'meeting_point', type: 'varchar', length: 240, nullable: true })
   meetingPoint: string | null;
 
+  @Column({ name: 'meeting_latitude', type: 'double precision', nullable: true })
+  meetingLatitude: number | null;
+
+  @Column({ name: 'meeting_longitude', type: 'double precision', nullable: true })
+  meetingLongitude: number | null;
+
   @Column({ name: 'driver_meeting_point_confirmed_at', type: 'timestamptz', nullable: true })
   driverMeetingPointConfirmedAt: Date | null;
 

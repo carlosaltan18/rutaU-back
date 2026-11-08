@@ -3882,6 +3882,14 @@
           "meetingPoint": {
             "type": "string",
             "example": "Entrada principal de la Universidad"
+          },
+          "latitude": {
+            "type": "number",
+            "example": 14.6349
+          },
+          "longitude": {
+            "type": "number",
+            "example": -90.5069
           }
         },
         "required": [

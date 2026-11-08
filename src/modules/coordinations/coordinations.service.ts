@@ -115,8 +115,19 @@ export class CoordinationsService {
   ) {
     return this.dataSource.transaction(async (manager) => {
       const coordination = await this.lockActiveCoordination(manager, id, student);
+      const hasLatitude = input.latitude !== undefined && input.latitude !== null;
+      const hasLongitude = input.longitude !== undefined && input.longitude !== null;
+      if (hasLatitude !== hasLongitude) {
+        throw new DomainException(
+          'VALIDATION_ERROR',
+          'El punto del mapa debe incluir latitud y longitud.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       const now = new Date();
       coordination.meetingPoint = input.meetingPoint;
+      coordination.meetingLatitude = input.latitude ?? null;
+      coordination.meetingLongitude = input.longitude ?? null;
       coordination.driverMeetingPointConfirmedAt =
         coordination.driverStudentId === student.id ? now : null;
       coordination.passengerMeetingPointConfirmedAt =
@@ -467,6 +478,8 @@ export class CoordinationsService {
       meetingPoint: coordination.meetingPoint
         ? {
             value: coordination.meetingPoint,
+            latitude: coordination.meetingLatitude,
+            longitude: coordination.meetingLongitude,
             confirmedByCurrentUser:
               coordination.driverStudentId === actorStudentId
                 ? Boolean(coordination.driverMeetingPointConfirmedAt)
