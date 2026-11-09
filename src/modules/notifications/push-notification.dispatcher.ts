@@ -38,6 +38,22 @@ const COPY: Record<NotificationType, { title: string; body: string }> = {
     title: 'Coordinación cancelada',
     body: 'Un participante canceló la coordinación del viaje.',
   },
+  [NotificationType.COORDINATION_ARRIVAL]: {
+    title: 'Tu acompañante ya llegó',
+    body: 'La otra persona indicó que ya está en el punto de encuentro.',
+  },
+  [NotificationType.TRIP_REMINDER_30_MINUTES]: {
+    title: 'Tu viaje es en 30 minutos',
+    body: 'Revisa el punto de encuentro y prepárate para salir.',
+  },
+  [NotificationType.TRIP_REMINDER_10_MINUTES]: {
+    title: 'Tu viaje es en 10 minutos',
+    body: 'Tu viaje coordinado está por comenzar.',
+  },
+  [NotificationType.CONTRIBUTION_CONFIRMED]: {
+    title: 'Aporte confirmado',
+    body: 'La otra persona marcó el aporte simulado como entregado.',
+  },
 };
 
 export function buildPushMessage(
@@ -45,8 +61,13 @@ export function buildPushMessage(
   tokens: string[],
 ): MulticastMessage {
   const copy = COPY[notification.type];
-  const isCoordination =
-    notification.type === NotificationType.COORDINATION_CANCELLED;
+  const isCoordination = new Set<NotificationType>([
+    NotificationType.COORDINATION_CANCELLED,
+    NotificationType.COORDINATION_ARRIVAL,
+    NotificationType.TRIP_REMINDER_30_MINUTES,
+    NotificationType.TRIP_REMINDER_10_MINUTES,
+    NotificationType.CONTRIBUTION_CONFIRMED,
+  ]).has(notification.type);
   return {
     tokens,
     notification: copy,

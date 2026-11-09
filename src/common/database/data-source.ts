@@ -6,6 +6,7 @@ import { AddPushDelivery1792890000000 } from './migrations/1792890000000-add-pus
 import { AddLiveTripLifecycle1792891000000 } from './migrations/1792891000000-add-live-trip-lifecycle.js';
 import { AddCoordinationMeetingPoint1792892000000 } from './migrations/1792892000000-add-coordination-meeting-point.js';
 import { AddCoordinationMeetingCoordinates1792893000000 } from './migrations/1792893000000-add-coordination-meeting-coordinates.js';
+import { AddCoordinationTripExperience1794100000000 } from './migrations/1794100000000-add-coordination-trip-experience.js';
 
 const options = databaseOptions();
 
@@ -17,5 +18,6 @@ export default new DataSource({
     AddLiveTripLifecycle1792891000000,
     AddCoordinationMeetingPoint1792892000000,
     AddCoordinationMeetingCoordinates1792893000000,
+    AddCoordinationTripExperience1794100000000,
   ],
 } as ConstructorParameters<typeof DataSource>[0]);

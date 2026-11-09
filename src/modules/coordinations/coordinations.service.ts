@@ -2,8 +2,10 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DateTime } from 'luxon';
 import { DataSource, type EntityManager, In, Repository } from 'typeorm';
 import {
+  CancellationReason,
   CoordinationStatus,
   NotificationType,
   RequestStatus,
@@ -22,6 +24,7 @@ import {
   toPublicProfile,
 } from '../students/student.presenter.js';
 import { TripOccurrence } from '../trips/entities/trip-occurrence.entity.js';
+import type { CancelCoordinationDto } from './dto/cancel-coordination.dto.js';
 import type { CoordinationQueryDto } from './dto/coordination-query.dto.js';
 import type { UpdateMeetingPointDto } from './dto/meeting-point.dto.js';
 import { Coordination } from './entities/coordination.entity.js';
@@ -297,7 +300,33 @@ export class CoordinationsService {
     }
   }
 
-  async cancel(id: string, student: Student) {
+  /** Envía un recordatorio a las personas del viaje antes de la hora de salida. */
+  @Cron('0 * * * * *', { name: 'send-trip-reminders' })
+  async sendTripReminders(): Promise<void> {
+    const travelDate = DateTime.now().setZone(GuatemalaTimeZone).toISODate();
+    if (!travelDate) return;
+    const occurrences = await this.dataSource
+      .getRepository(TripOccurrence)
+      .findBy({ travelDate });
+    for (const occurrence of occurrences) {
+      try {
+        await this.sendReminderForOccurrence(
+          occurrence.driverTripId,
+          occurrence.travelDate,
+        );
+      } catch {
+        this.logger.warn(
+          `Could not send trip reminder ${occurrence.driverTripId}_${occurrence.travelDate}`,
+        );
+      }
+    }
+  }
+
+  async cancel(
+    id: string,
+    student: Student,
+    input: CancelCoordinationDto,
+  ) {
     const outcome = await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Coordination);
       const coordination = await repository.findOne({
@@ -315,9 +344,9 @@ export class CoordinationsService {
         );
       }
       if (coordination.driverStudentId === student.id) {
-        await this.cancelDriverRun(manager, coordination);
+        await this.cancelDriverRun(manager, coordination, input.reason);
       } else {
-        await this.cancelPassenger(manager, coordination);
+        await this.cancelPassenger(manager, coordination, input.reason);
       }
       const updated = await repository.findOneByOrFail({ id });
       return {
@@ -348,13 +377,80 @@ export class CoordinationsService {
     return outcome.data;
   }
 
+  /** Guarda que una de las dos personas ya llegó y avisa a la otra. */
+  async markArrival(id: string, student: Student) {
+    return this.dataSource.transaction(async (manager) => {
+      const coordination = await this.lockActiveCoordination(manager, id, student);
+      const isDriver = coordination.driverStudentId === student.id;
+      const hadArrived = isDriver
+        ? Boolean(coordination.driverArrivedAt)
+        : Boolean(coordination.passengerArrivedAt);
+      if (!hadArrived) {
+        if (isDriver) {
+          coordination.driverArrivedAt = new Date();
+        } else {
+          coordination.passengerArrivedAt = new Date();
+        }
+        await manager.getRepository(Coordination).save(coordination);
+        await this.notify(
+          manager,
+          isDriver ? coordination.passengerStudentId : coordination.driverStudentId,
+          NotificationType.COORDINATION_ARRIVAL,
+          coordination.id,
+        );
+      }
+      return this.present(manager, coordination, student.id);
+    });
+  }
+
+  /** Guarda la confirmación individual del aporte simulado al terminar el viaje. */
+  async confirmContribution(id: string, student: Student) {
+    return this.dataSource.transaction(async (manager) => {
+      const coordination = await manager.getRepository(Coordination).findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!coordination || !this.isParticipant(coordination, student.id)) {
+        throw this.notFound();
+      }
+      if (coordination.status !== CoordinationStatus.COMPLETED) {
+        throw new DomainException(
+          'CONTRIBUTION_NOT_AVAILABLE',
+          'El aporte se confirma después de finalizar el viaje.',
+          HttpStatus.CONFLICT,
+        );
+      }
+      const isDriver = coordination.driverStudentId === student.id;
+      const wasConfirmed = isDriver
+        ? Boolean(coordination.driverContributionConfirmedAt)
+        : Boolean(coordination.passengerContributionConfirmedAt);
+      if (!wasConfirmed) {
+        if (isDriver) {
+          coordination.driverContributionConfirmedAt = new Date();
+        } else {
+          coordination.passengerContributionConfirmedAt = new Date();
+        }
+        await manager.getRepository(Coordination).save(coordination);
+        await this.notify(
+          manager,
+          isDriver ? coordination.passengerStudentId : coordination.driverStudentId,
+          NotificationType.CONTRIBUTION_CONFIRMED,
+          coordination.id,
+        );
+      }
+      return this.present(manager, coordination, student.id);
+    });
+  }
+
   private async cancelPassenger(
     manager: EntityManager,
     coordination: Coordination,
+    reason: CancellationReason,
   ) {
     const now = new Date();
     coordination.status = CoordinationStatus.CANCELLED;
     coordination.cancelledAt = now;
+    coordination.cancellationReason = reason;
     await manager.getRepository(Coordination).save(coordination);
     await manager
       .getRepository(RideRequest)
@@ -378,12 +474,14 @@ export class CoordinationsService {
       coordination.driverStudentId,
       NotificationType.COORDINATION_CANCELLED,
       coordination.id,
+      { reason },
     );
   }
 
   private async cancelDriverRun(
     manager: EntityManager,
     selected: Coordination,
+    reason: CancellationReason,
   ) {
     const repository = manager.getRepository(Coordination);
     const run = await repository
@@ -403,6 +501,7 @@ export class CoordinationsService {
     for (const coordination of run) {
       coordination.status = CoordinationStatus.CANCELLED;
       coordination.cancelledAt = now;
+      coordination.cancellationReason = reason;
       await manager
         .getRepository(RideRequest)
         .update(
@@ -414,6 +513,7 @@ export class CoordinationsService {
         coordination.passengerStudentId,
         NotificationType.COORDINATION_CANCELLED,
         coordination.id,
+        { reason },
       );
     }
     await repository.save(run);
@@ -467,7 +567,28 @@ export class CoordinationsService {
       contact: confirmed ? toAuthorizedContact(counterpart) : null,
       createdAt: coordination.createdAt,
       cancelledAt: coordination.cancelledAt,
+      cancellationReason: coordination.cancellationReason,
       completedAt: coordination.completedAt,
+      arrival: {
+        arrivedByCurrentUser:
+          coordination.driverStudentId === actorStudentId
+            ? Boolean(coordination.driverArrivedAt)
+            : Boolean(coordination.passengerArrivedAt),
+        arrivedByOtherParticipant:
+          coordination.driverStudentId === actorStudentId
+            ? Boolean(coordination.passengerArrivedAt)
+            : Boolean(coordination.driverArrivedAt),
+      },
+      contribution: {
+        confirmedByCurrentUser:
+          coordination.driverStudentId === actorStudentId
+            ? Boolean(coordination.driverContributionConfirmedAt)
+            : Boolean(coordination.passengerContributionConfirmedAt),
+        confirmedByOtherParticipant:
+          coordination.driverStudentId === actorStudentId
+            ? Boolean(coordination.passengerContributionConfirmedAt)
+            : Boolean(coordination.driverContributionConfirmedAt),
+      },
       capacity: {
         totalSeats: occurrence?.seatCapacitySnapshot ?? 0,
         confirmedPassengers: occurrence?.reservedSeats ?? 0,
@@ -536,6 +657,77 @@ export class CoordinationsService {
       );
     }
     return coordination;
+  }
+
+  /** Envía un único recordatorio por participante para la salida más próxima. */
+  private async sendReminderForOccurrence(
+    driverTripId: string,
+    travelDate: string,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const occurrence = await manager.getRepository(TripOccurrence).findOne({
+        where: { driverTripId, travelDate },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!occurrence || occurrence.liveStartedAt || occurrence.liveEndedAt) return;
+      const run = await manager.getRepository(Coordination).findBy({
+        driverTripId,
+        travelDate,
+        status: CoordinationStatus.CONFIRMED,
+      });
+      if (!run.length) return;
+      const departure = DateTime.fromISO(
+        `${travelDate}T${run[0].plannedDepartureTime.slice(0, 5)}`,
+        { zone: GuatemalaTimeZone },
+      );
+      if (!departure.isValid) return;
+      const minutesUntilDeparture = departure
+        .diff(DateTime.now().setZone(GuatemalaTimeZone), 'minutes')
+        .minutes;
+      const type = this.reminderType(
+        minutesUntilDeparture,
+        occurrence.reminder30SentAt,
+        occurrence.reminder10SentAt,
+      );
+      if (!type) return;
+      const coordinationByStudent = new Map<string, Coordination>();
+      for (const coordination of run) {
+        coordinationByStudent.set(coordination.passengerStudentId, coordination);
+      }
+      coordinationByStudent.set(run[0].driverStudentId, run[0]);
+      for (const [studentId, coordination] of coordinationByStudent) {
+        await this.notify(manager, studentId, type, coordination.id);
+      }
+      if (type === NotificationType.TRIP_REMINDER_30_MINUTES) {
+        occurrence.reminder30SentAt = new Date();
+      } else {
+        occurrence.reminder10SentAt = new Date();
+      }
+      await manager.getRepository(TripOccurrence).save(occurrence);
+    });
+  }
+
+  /** Decide cuál aviso falta sin repetir recordatorios de la misma salida. */
+  private reminderType(
+    minutesUntilDeparture: number,
+    reminder30SentAt: Date | null,
+    reminder10SentAt: Date | null,
+  ): NotificationType | null {
+    if (
+      !reminder10SentAt &&
+      minutesUntilDeparture <= 10 &&
+      minutesUntilDeparture >= -5
+    ) {
+      return NotificationType.TRIP_REMINDER_10_MINUTES;
+    }
+    if (
+      !reminder30SentAt &&
+      minutesUntilDeparture <= 30 &&
+      minutesUntilDeparture > 10
+    ) {
+      return NotificationType.TRIP_REMINDER_30_MINUTES;
+    }
+    return null;
   }
 
   /** Bloquea una coordinación confirmada para que sus participantes la actualicen. */
@@ -613,10 +805,11 @@ export class CoordinationsService {
     studentId: string,
     type: NotificationType,
     resourceId: string,
+    payload: Record<string, unknown> = {},
   ) {
     const repository = manager.getRepository(Notification);
     return repository.save(
-      repository.create({ studentId, type, resourceId, payload: {} }),
+      repository.create({ studentId, type, resourceId, payload }),
     );
   }
 
@@ -636,3 +829,5 @@ export class CoordinationsService {
     );
   }
 }
+
+const GuatemalaTimeZone = 'America/Guatemala';

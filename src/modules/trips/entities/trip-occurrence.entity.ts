@@ -20,6 +20,12 @@ export class TripOccurrence {
   @Column({ name: 'live_ended_at', type: 'timestamptz', nullable: true })
   liveEndedAt: Date | null;
 
+  @Column({ name: 'reminder_30_sent_at', type: 'timestamptz', nullable: true })
+  reminder30SentAt: Date | null;
+
+  @Column({ name: 'reminder_10_sent_at', type: 'timestamptz', nullable: true })
+  reminder10SentAt: Date | null;
+
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }

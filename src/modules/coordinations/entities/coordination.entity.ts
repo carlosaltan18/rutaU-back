@@ -5,7 +5,10 @@ import {
   Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { CoordinationStatus } from '../../../common/domain/enums.js';
+import {
+  CancellationReason,
+  CoordinationStatus,
+} from '../../../common/domain/enums.js';
 
 @Entity({ name: 'coordinations' })
 @Index('uq_coordination_request', ['rideRequestId'], { unique: true })
@@ -74,6 +77,35 @@ export class Coordination {
   @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
   cancelledAt: Date | null;
 
+  @Column({
+    name: 'cancellation_reason',
+    type: 'enum',
+    enum: CancellationReason,
+    enumName: 'coordination_cancellation_reason_enum',
+    nullable: true,
+  })
+  cancellationReason: CancellationReason | null;
+
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
   completedAt: Date | null;
+
+  @Column({ name: 'driver_arrived_at', type: 'timestamptz', nullable: true })
+  driverArrivedAt: Date | null;
+
+  @Column({ name: 'passenger_arrived_at', type: 'timestamptz', nullable: true })
+  passengerArrivedAt: Date | null;
+
+  @Column({
+    name: 'driver_contribution_confirmed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  driverContributionConfirmedAt: Date | null;
+
+  @Column({
+    name: 'passenger_contribution_confirmed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  passengerContributionConfirmedAt: Date | null;
 }

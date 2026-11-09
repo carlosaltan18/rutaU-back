@@ -13,6 +13,7 @@ import { CurrentStudent } from '../../common/auth/current-student.decorator.js';
 import { ApiStandardErrors } from '../../common/openapi/api-errors.decorator.js';
 import type { Student } from '../students/entities/student.entity.js';
 import { CoordinationsService } from './coordinations.service.js';
+import { CancelCoordinationDto } from './dto/cancel-coordination.dto.js';
 import { CoordinationQueryDto } from './dto/coordination-query.dto.js';
 import { UpdateMeetingPointDto } from './dto/meeting-point.dto.js';
 
@@ -51,8 +52,27 @@ export class CoordinationsController {
   cancel(
     @CurrentStudent() student: Student,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: CancelCoordinationDto,
   ) {
-    return this.service.cancel(id, student);
+    return this.service.cancel(id, student, input);
+  }
+
+  @Post('coordinations/:id/arrival')
+  @ApiOperation({ summary: 'Marca que la persona llegó al punto de encuentro' })
+  markArrival(
+    @CurrentStudent() student: Student,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.markArrival(id, student);
+  }
+
+  @Post('coordinations/:id/contribution/confirm')
+  @ApiOperation({ summary: 'Confirma el aporte simulado después del viaje' })
+  confirmContribution(
+    @CurrentStudent() student: Student,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.confirmContribution(id, student);
   }
 
   @Patch('coordinations/:id/meeting-point')

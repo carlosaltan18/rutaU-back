@@ -34,4 +34,18 @@ describe('FCM notification contract', () => {
 
     expect(message.data?.destination).toBe('COORDINATION_DETAIL');
   });
+
+  it('routes arrival and reminder notifications to the coordination detail', () => {
+    const message = buildPushMessage(
+      {
+        id: 'notification-3',
+        type: NotificationType.COORDINATION_ARRIVAL,
+        resourceId: 'coordination-1',
+      },
+      ['device-token'],
+    );
+
+    expect(message.data?.destination).toBe('COORDINATION_DETAIL');
+    expect(message.notification?.title).toBe('Tu acompañante ya llegó');
+  });
 });
