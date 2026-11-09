@@ -233,6 +233,7 @@ describe.sequential('Flujos críticos PostgreSQL', () => {
       await request(app.getHttpServer())
         .post(`/api/v1/coordinations/${coordinationId}/cancel`)
         .set('Authorization', `Bearer ${tokenFor(5)}`)
+        .send({ reason: 'NO_LONGER_NEEDED' })
         .expect(201);
       const [occurrence] = await database.query<
         Array<{ reserved_seats: number }>
@@ -265,6 +266,7 @@ describe.sequential('Flujos críticos PostgreSQL', () => {
       await request(app.getHttpServer())
         .post(`/api/v1/coordinations/${coordinationIds[0]}/cancel`)
         .set('Authorization', `Bearer ${tokenFor(4)}`)
+        .send({ reason: 'SCHEDULE_CHANGE' })
         .expect(201);
       const rows = await database.query<Array<{ status: string }>>(
         'SELECT status FROM coordinations WHERE id = ANY($1::uuid[])',
